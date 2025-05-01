@@ -89,6 +89,7 @@ export default function GameComponent() {
   }, [lastPlayer, pot, toast, soundEnabled, texts])
 
   // Handle button press
+
   const handleButtonPress = useCallback(() => {
     try {
       setIsButtonDisabled(true)
@@ -118,6 +119,7 @@ export default function GameComponent() {
     }
   }, [toast, soundEnabled, texts])
 
+  
   // Format current time
   const formattedTime = currentTime.toLocaleTimeString(language === "es" ? "es-ES" : "en-US", {
     hour: "2-digit",
