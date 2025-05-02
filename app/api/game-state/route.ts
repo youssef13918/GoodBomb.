@@ -59,7 +59,7 @@ export async function PUT(request: Request) {
     // Reiniciar juego después de explosión
     if (data.action === "reset") {
       gameState = {
-        timeLeft: 180,
+        timeLeft: 240,
         lastPlayer: "Nadie aún",
         pot: 0,
         isActive: true,
@@ -75,7 +75,7 @@ export async function PUT(request: Request) {
 
       // Reiniciar juego
       gameState = {
-        timeLeft: 180,
+        timeLeft: 240,
         lastPlayer: "Nadie aún",
         pot: 0,
         isActive: true,

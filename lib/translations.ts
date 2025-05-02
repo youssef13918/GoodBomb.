@@ -11,7 +11,7 @@ export const spanishTexts = {
   // Game UI
   lastPlayer: "Último jugador",
   reward: "Recompensa",
-  pressButton: "PRESIONAR EL BOTÓN ",
+  pressButton: "PRESIONAR EL BOTÓN",
   noOneYet: "Nadie aún",
   anonymous: "Anónimo",
 
@@ -37,12 +37,12 @@ export const spanishTexts = {
   // Rules
   rulesTitle: "Reglas y condiciones – GoodBomb",
   rulesObjective:
-    "Objetivo del juego: Presiona el botón militar para convertirte en el último jugador antes de que la bomba explote. Si nadie más presiona en 2 minutos, ¡tú ganas el pozo!",
+    "Objetivo del juego: Presiona el botón militar para convertirte en el último jugador antes de que la bomba explote. Si nadie más presiona en 4 minutos, ¡tú ganas el pozo!",
 
   rulesParticipation: "Participación",
   rulesButtonCost: "Cada botón cuesta 0.1 WLD.",
   rulesEachPress: "Cada vez que alguien presiona:",
-  rulesTimerReset: "El temporizador se reinicia a 2:00 minutos.",
+  rulesTimerReset: "El temporizador se reinicia a 4:00 minutos.",
   rulesNameAppears: "Su nombre aparece como el último jugador.",
   rulesPotIncrease: "Se suma 0.1 WLD al pozo acumulado.",
 
@@ -103,12 +103,12 @@ export const englishTexts = {
   // Rules
   rulesTitle: "Rules and Conditions – GoodBomb",
   rulesObjective:
-    "Game objective: Press the military button to become the last player before the bomb explodes. If no one else presses it within 2 minutes, you win the pot!",
+    "Game objective: Press the military button to become the last player before the bomb explodes. If no one else presses it within 4 minutes, you win the pot!",
 
   rulesParticipation: "Participation",
   rulesButtonCost: "Each button press costs 0.1 WLD.",
   rulesEachPress: "Every time someone presses:",
-  rulesTimerReset: "The timer resets to 2:00 minutes.",
+  rulesTimerReset: "The timer resets to 4:00 minutes.",
   rulesNameAppears: "Their name appears as the last player.",
   rulesPotIncrease: "0.1 WLD is added to the accumulated pot.",
 

@@ -10,7 +10,48 @@ import BombAnimation from "@/components/bomb-animation"
 import MilitaryCharacter from "@/components/military-character"
 import MilitaryButton from "@/components/military-button"
 import MilitaryFrame from "@/components/military-frame"
+import { MiniKit, tokenToDecimals, Tokens, PayCommandInput } from '@worldcoin/minikit-js'
 
+const sendPayment = async () => {
+  const res = await fetch('/api/initiate-payment', {
+    method: 'POST',
+  })
+  const { id } = await res.json()
+
+  const payload: PayCommandInput = {
+    reference: id,
+    to: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045', // Test address
+    tokens: [
+      {
+        symbol: Tokens.WLD,
+        token_amount: tokenToDecimals(1, Tokens.WLD).toString(),
+      },
+      {
+        symbol: Tokens.USDCE,
+        token_amount: tokenToDecimals(3, Tokens.USDCE).toString(),
+      },
+    ],
+    description: 'Test example payment for minikit',
+  }
+
+  if (!MiniKit.isInstalled()) {
+    return
+  }
+
+  const { finalPayload } = await MiniKit.commandsAsync.pay(payload)
+
+  if (finalPayload.status == 'success') {
+    const res = await fetch(`/api/confirm-payment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(finalPayload),
+    })
+    const payment = await res.json()
+    if (payment.success) {
+      // Congrats your payment was successful!
+    }
+  }
+}
 // Función auxiliar para reproducir sonidos de manera segura
 const playSoundSafely = (soundPath: string) => {
   try {
@@ -32,7 +73,7 @@ const playSoundSafely = (soundPath: string) => {
 }
 
 export default function GameComponent() {
-  const [timeLeft, setTimeLeft] = useState(180) // 3 minutes in seconds
+  const [timeLeft, setTimeLeft] = useState(240) // 4 minutes in seconds
   const [lastPlayer, setLastPlayer] = useState("Nadie aún")
   const [pot, setPot] = useState(0)
   const [isExploding, setIsExploding] = useState(false)
@@ -81,7 +122,7 @@ export default function GameComponent() {
     // Reset game after explosion animation
     setTimeout(() => {
       setIsExploding(false)
-      setTimeLeft(180)
+      setTimeLeft(240)
       // 5% of the pot goes to the next round
       setPot(pot * 0.05)
       setLastPlayer(texts.noOneYet)
@@ -89,7 +130,6 @@ export default function GameComponent() {
   }, [lastPlayer, pot, toast, soundEnabled, texts])
 
   // Handle button press
-
   const handleButtonPress = useCallback(() => {
     try {
       setIsButtonDisabled(true)
@@ -99,7 +139,7 @@ export default function GameComponent() {
       }
 
       const mockUsername = "Usuario" + Math.floor(Math.random() * 1000)
-      setTimeLeft(180)
+      setTimeLeft(240)
       setLastPlayer(mockUsername)
       setPot((prev) => prev + 0.1)
 
@@ -119,7 +159,6 @@ export default function GameComponent() {
     }
   }, [toast, soundEnabled, texts])
 
-  
   // Format current time
   const formattedTime = currentTime.toLocaleTimeString(language === "es" ? "es-ES" : "en-US", {
     hour: "2-digit",

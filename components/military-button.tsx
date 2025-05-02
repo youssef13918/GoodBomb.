@@ -46,7 +46,7 @@ export default function MilitaryButton({ onClick, disabled, isUrgent, text }: Mi
           ${isUrgent ? "animate-pulse bg-red-600 hover:bg-red-700" : "bg-red-700 hover:bg-red-800"}
         `}
         style={{
-          boxShadow: "inset 0px -4px 0px rgba(0,0,0,0.5), inset 0px 1px 0px rgba(255,255,255,0.2)",
+          boxShadow: "inset 0px -4px 0px rgba(0,0,0,0.3), inset 0px 1px 0px rgba(255,255,255,0.2)",
         }}
       >
         <div className="flex items-center justify-center gap-2">
