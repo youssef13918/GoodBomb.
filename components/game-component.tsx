@@ -4,15 +4,12 @@ import { useState, useEffect, useCallback } from "react"
 import { Coins, User, Clock, Settings } from "lucide-react"
 import { formatTime } from "@/lib/utils"
 import { useSettings } from "@/context/settings-context"
-import { useWorldApp } from "@/context/world-app-context"
 import { useToast } from "@/hooks/use-toast"
 import SettingsModal from "@/components/settings-modal"
 import BombAnimation from "@/components/bomb-animation"
 import MilitaryCharacter from "@/components/military-character"
 import MilitaryButton from "@/components/military-button"
 import MilitaryFrame from "@/components/military-frame"
-import WorldIDVerification from "@/components/world-id-verification"
-import GamePayButton from "@/components/game-pay-button"
 
 // Función auxiliar para reproducir sonidos de manera segura
 const playSoundSafely = (soundPath: string) => {
@@ -44,7 +41,6 @@ export default function GameComponent() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const { toast } = useToast()
   const { language, soundEnabled, theme, texts } = useSettings()
-  const { isWorldAppInstalled, isDevelopmentMode, username, isVerified } = useWorldApp()
 
   // Update current time
   useEffect(() => {
@@ -92,7 +88,7 @@ export default function GameComponent() {
     }, 3000)
   }, [lastPlayer, pot, toast, soundEnabled, texts])
 
-  // Handle button press with World App integration
+  // Handle button press
   const handleButtonPress = useCallback(async () => {
     try {
       setIsButtonDisabled(true)
@@ -101,11 +97,9 @@ export default function GameComponent() {
         playSoundSafely("/sounds/button-press.mp3")
       }
 
-      // Si World App está instalada, usamos el nombre de usuario real
-      const displayName = username || "Usuario" + Math.floor(Math.random() * 1000)
-
+      const mockUsername = "Usuario" + Math.floor(Math.random() * 1000)
       setTimeLeft(240)
-      setLastPlayer(displayName)
+      setLastPlayer(mockUsername)
       setPot((prev) => prev + 0.1)
 
       toast({
@@ -122,21 +116,7 @@ export default function GameComponent() {
     } finally {
       setIsButtonDisabled(false)
     }
-  }, [toast, soundEnabled, texts, username])
-
-  // Manejar el pago exitoso
-  const handlePaymentSuccess = useCallback(
-    (playerName: string) => {
-      if (soundEnabled) {
-        playSoundSafely("/sounds/button-press.mp3")
-      }
-
-      setTimeLeft(240)
-      setLastPlayer(playerName)
-      setPot((prev) => prev + 0.1)
-    },
-    [soundEnabled],
-  )
+  }, [toast, soundEnabled, texts])
 
   // Format current time
   const formattedTime = currentTime.toLocaleTimeString(language === "es" ? "es-ES" : "en-US", {
@@ -146,10 +126,6 @@ export default function GameComponent() {
 
   // Determine timer styles based on time left
   const isUrgent = timeLeft <= 30
-
-  // Determinar si mostrar la verificación o el botón de pago
-  const showWorldIDVerification = (isWorldAppInstalled || isDevelopmentMode) && !isVerified
-  const showPayButton = (isWorldAppInstalled || isDevelopmentMode) && isVerified
 
   return (
     <main
@@ -166,11 +142,6 @@ export default function GameComponent() {
               <span className="text-olive-300 text-sm">{formattedTime}</span>
             </div>
             <div className="flex items-center gap-2">
-              {username && (
-                <span className="text-olive-300 text-sm">
-                  @{username} {isDevelopmentMode && "(Dev)"}
-                </span>
-              )}
               <button
                 onClick={() => setIsSettingsOpen(true)}
                 className="text-olive-300 hover:text-white transition-colors"
@@ -181,13 +152,6 @@ export default function GameComponent() {
           </div>
 
           <div className="p-5">
-            {/* World ID Verification */}
-            {showWorldIDVerification && (
-              <div className="mb-4">
-                <WorldIDVerification onVerified={() => {}} />
-              </div>
-            )}
-
             {/* Timer Display */}
             <div className="flex justify-center mb-4">
               <div className="flex items-center gap-2 px-4 py-2 rounded-md bg-black/70 border-2 border-olive-600">
@@ -229,34 +193,12 @@ export default function GameComponent() {
             </div>
 
             {/* Action Button */}
-            {showPayButton ? (
-              <GamePayButton
-                onPaymentSuccess={handlePaymentSuccess}
-                isUrgent={isUrgent}
-                disabled={isButtonDisabled || isExploding}
-              />
-            ) : (
-              <MilitaryButton
-                onClick={handleButtonPress}
-                disabled={isButtonDisabled || isExploding || showWorldIDVerification}
-                isUrgent={isUrgent}
-                text={texts.pressButton}
-              />
-            )}
-
-            {/* Mensaje si no está verificado */}
-            {showWorldIDVerification && (
-              <div className="mt-2 text-center text-yellow-400 text-sm">
-                Debes verificarte {isDevelopmentMode ? "(modo desarrollo) " : "con World ID "}para poder jugar
-              </div>
-            )}
-
-            {/* Modo desarrollo */}
-            {isDevelopmentMode && (
-              <div className="mt-4 p-2 bg-blue-900/50 border border-blue-700 rounded-md text-center">
-                <p className="text-xs text-blue-300">Modo desarrollo activo: World App simulado para pruebas</p>
-              </div>
-            )}
+            <MilitaryButton
+              onClick={handleButtonPress}
+              disabled={isButtonDisabled || isExploding}
+              isUrgent={isUrgent}
+              text={texts.pressButton}
+            />
           </div>
         </MilitaryFrame>
       </div>
