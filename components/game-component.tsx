@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { Coins, User, Clock, Settings } from "lucide-react"
 import { formatTime } from "@/lib/utils"
 import { useSettings } from "@/context/settings-context"
+import { useWorldApp } from "@/context/world-app-context"
 import { useToast } from "@/hooks/use-toast"
 import SettingsModal from "@/components/settings-modal"
 import BombAnimation from "@/components/bomb-animation"
@@ -11,8 +12,7 @@ import MilitaryCharacter from "@/components/military-character"
 import MilitaryButton from "@/components/military-button"
 import MilitaryFrame from "@/components/military-frame"
 import WorldIDVerification from "@/components/world-id-verification"
-import Pay from "@/components/pay"
-import { MiniKit } from "@worldcoin/minikit-js"
+import GamePayButton from "@/components/game-pay-button"
 
 // Función auxiliar para reproducir sonidos de manera segura
 const playSoundSafely = (soundPath: string) => {
@@ -42,32 +42,9 @@ export default function GameComponent() {
   const [isButtonDisabled, setIsButtonDisabled] = useState(false)
   const [currentTime, setCurrentTime] = useState(new Date())
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const [isWorldAppInstalled, setIsWorldAppInstalled] = useState(false)
-  const [username, setUsername] = useState<string | null>(null)
   const { toast } = useToast()
   const { language, soundEnabled, theme, texts } = useSettings()
-
-  // Verificar si World App está instalada
-  useEffect(() => {
-    const checkWorldApp = async () => {
-      const installed = MiniKit.isInstalled()
-      setIsWorldAppInstalled(installed)
-
-      if (installed) {
-        try {
-          // Intentar obtener el nombre de usuario
-          const user = await MiniKit.getUser()
-          if (user && user.username) {
-            setUsername(user.username)
-          }
-        } catch (error) {
-          console.error("Error al obtener el usuario:", error)
-        }
-      }
-    }
-
-    checkWorldApp()
-  }, [])
+  const { isWorldAppInstalled, isDevelopmentMode, username, isVerified } = useWorldApp()
 
   // Update current time
   useEffect(() => {
@@ -147,6 +124,20 @@ export default function GameComponent() {
     }
   }, [toast, soundEnabled, texts, username])
 
+  // Manejar el pago exitoso
+  const handlePaymentSuccess = useCallback(
+    (playerName: string) => {
+      if (soundEnabled) {
+        playSoundSafely("/sounds/button-press.mp3")
+      }
+
+      setTimeLeft(240)
+      setLastPlayer(playerName)
+      setPot((prev) => prev + 0.1)
+    },
+    [soundEnabled],
+  )
+
   // Format current time
   const formattedTime = currentTime.toLocaleTimeString(language === "es" ? "es-ES" : "en-US", {
     hour: "2-digit",
@@ -155,6 +146,10 @@ export default function GameComponent() {
 
   // Determine timer styles based on time left
   const isUrgent = timeLeft <= 30
+
+  // Determinar si mostrar la verificación o el botón de pago
+  const showWorldIDVerification = (isWorldAppInstalled || isDevelopmentMode) && !isVerified
+  const showPayButton = (isWorldAppInstalled || isDevelopmentMode) && isVerified
 
   return (
     <main
@@ -171,7 +166,11 @@ export default function GameComponent() {
               <span className="text-olive-300 text-sm">{formattedTime}</span>
             </div>
             <div className="flex items-center gap-2">
-              {username && <span className="text-olive-300 text-sm">@{username}</span>}
+              {username && (
+                <span className="text-olive-300 text-sm">
+                  @{username} {isDevelopmentMode && "(Dev)"}
+                </span>
+              )}
               <button
                 onClick={() => setIsSettingsOpen(true)}
                 className="text-olive-300 hover:text-white transition-colors"
@@ -183,9 +182,9 @@ export default function GameComponent() {
 
           <div className="p-5">
             {/* World ID Verification */}
-            {isWorldAppInstalled && (
+            {showWorldIDVerification && (
               <div className="mb-4">
-                <WorldIDVerification />
+                <WorldIDVerification onVerified={() => {}} />
               </div>
             )}
 
@@ -230,15 +229,33 @@ export default function GameComponent() {
             </div>
 
             {/* Action Button */}
-            {isWorldAppInstalled ? (
-              <Pay />
+            {showPayButton ? (
+              <GamePayButton
+                onPaymentSuccess={handlePaymentSuccess}
+                isUrgent={isUrgent}
+                disabled={isButtonDisabled || isExploding}
+              />
             ) : (
               <MilitaryButton
                 onClick={handleButtonPress}
-                disabled={isButtonDisabled || isExploding}
+                disabled={isButtonDisabled || isExploding || showWorldIDVerification}
                 isUrgent={isUrgent}
                 text={texts.pressButton}
               />
+            )}
+
+            {/* Mensaje si no está verificado */}
+            {showWorldIDVerification && (
+              <div className="mt-2 text-center text-yellow-400 text-sm">
+                Debes verificarte {isDevelopmentMode ? "(modo desarrollo) " : "con World ID "}para poder jugar
+              </div>
+            )}
+
+            {/* Modo desarrollo */}
+            {isDevelopmentMode && (
+              <div className="mt-4 p-2 bg-blue-900/50 border border-blue-700 rounded-md text-center">
+                <p className="text-xs text-blue-300">Modo desarrollo activo: World App simulado para pruebas</p>
+              </div>
             )}
           </div>
         </MilitaryFrame>

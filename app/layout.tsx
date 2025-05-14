@@ -5,6 +5,7 @@ import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
 import { SettingsProvider } from "@/context/settings-context"
+import { WorldAppProvider } from "@/context/world-app-context"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -24,8 +25,10 @@ export default function RootLayout({
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
           <SettingsProvider>
-            {children}
-            <Toaster />
+            <WorldAppProvider>
+              {children}
+              <Toaster />
+            </WorldAppProvider>
           </SettingsProvider>
         </ThemeProvider>
       </body>

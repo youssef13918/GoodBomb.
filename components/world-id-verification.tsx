@@ -1,22 +1,45 @@
 "use client"
 
 import { useState } from "react"
-import { MiniKit, type VerifyCommandInput, VerificationLevel } from "@worldcoin/minikit-js"
+import { MiniKit, type VerifyCommandInput, VerificationLevel, type ISuccessResult } from "@worldcoin/minikit-js"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { useSettings } from "@/context/settings-context"
+import { useWorldApp } from "@/context/world-app-context"
 
-export default function WorldIDVerification() {
+interface WorldIDVerificationProps {
+  onVerified: () => void
+}
+
+export default function WorldIDVerification({ onVerified }: WorldIDVerificationProps) {
   const [isVerifying, setIsVerifying] = useState(false)
   const [isVerified, setIsVerified] = useState(false)
   const { toast } = useToast()
   const { texts } = useSettings()
+  const { isWorldAppInstalled, isDevelopmentMode, setIsVerified: setContextVerified } = useWorldApp()
 
   const handleVerify = async () => {
     try {
       setIsVerifying(true)
 
-      if (!MiniKit.isInstalled()) {
+      // Si estamos en modo desarrollo, simulamos la verificación
+      if (isDevelopmentMode) {
+        // Simular un retraso para la verificación
+        await new Promise((resolve) => setTimeout(resolve, 1500))
+
+        setIsVerified(true)
+        setContextVerified(true)
+
+        toast({
+          title: "¡Verificación exitosa! (Modo desarrollo)",
+          description: "Tu identidad ha sido simulada para desarrollo",
+        })
+
+        onVerified()
+        return
+      }
+
+      if (!isWorldAppInstalled) {
         toast({
           title: texts.error,
           description: "World App no está instalada",
@@ -49,7 +72,7 @@ export default function WorldIDVerification() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          payload: finalPayload,
+          payload: finalPayload as ISuccessResult,
           action: "goodbomb",
           signal: undefined, // Opcional
         }),
@@ -59,10 +82,14 @@ export default function WorldIDVerification() {
 
       if (verifyResponseJson.status === 200) {
         setIsVerified(true)
+        setContextVerified(true)
+
         toast({
           title: "¡Verificación exitosa!",
           description: "Tu identidad ha sido verificada con World ID",
         })
+
+        onVerified()
       } else {
         toast({
           title: texts.error,
@@ -89,9 +116,19 @@ export default function WorldIDVerification() {
         disabled={isVerifying || isVerified}
         className={`bg-blue-600 hover:bg-blue-700 ${isVerified ? "bg-green-600 hover:bg-green-600" : ""}`}
       >
-        {isVerifying ? "Verificando..." : isVerified ? "✓ Verificado" : "Verificar con World ID"}
+        {isVerifying
+          ? "Verificando..."
+          : isVerified
+            ? "✓ Verificado"
+            : isDevelopmentMode
+              ? "Verificar (Modo desarrollo)"
+              : "Verificar con World ID"}
       </Button>
-      {isVerified && <span className="text-xs text-green-500">Identidad verificada con World ID</span>}
+      {isVerified && (
+        <span className="text-xs text-green-500">
+          {isDevelopmentMode ? "Identidad simulada para desarrollo" : "Identidad verificada con World ID"}
+        </span>
+      )}
     </div>
   )
 }
