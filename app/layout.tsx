@@ -5,7 +5,6 @@ import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
 import { SettingsProvider } from "@/context/settings-context"
-import MiniKitProvider from "@/components/ui/minikit-provider"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -21,14 +20,12 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="es">
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
           <SettingsProvider>
-            <MiniKitProvider>
-              {children}
-              <Toaster />
-            </MiniKitProvider>
+            {children}
+            <Toaster />
           </SettingsProvider>
         </ThemeProvider>
       </body>

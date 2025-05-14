@@ -1,81 +1,103 @@
 "use client"
 
-import { Button, LiveFeedback } from "@worldcoin/mini-apps-ui-kit-react"
-import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js"
 import { useState } from "react"
+import { MiniKit, tokenToDecimals, Tokens, type PayCommandInput } from "@worldcoin/minikit-js"
+import { Button } from "@/components/ui/button"
+import { useToast } from "@/hooks/use-toast"
+import { useSettings } from "@/context/settings-context"
 
-/**
- * This component is used to pay a user
- * The payment command simply does an ERC20 transfer
- * But, it also includes a reference field that you can search for on-chain
- */
-export const Pay = () => {
-  const [buttonState, setButtonState] = useState<"pending" | "success" | "failed" | undefined>(undefined)
+export default function Pay() {
+  const [isLoading, setIsLoading] = useState(false)
+  const { toast } = useToast()
+  const { texts } = useSettings()
 
-  const onClickPay = async () => {
-    // Lets use Alex's username to pay!
-    const address = (await MiniKit.getUserByUsername("alex")).walletAddress
-    setButtonState("pending")
+  const sendPayment = async () => {
+    try {
+      setIsLoading(true)
 
-    const res = await fetch("/api/initiate-payment", {
-      method: "POST",
-    })
-    const { id } = await res.json()
+      if (!MiniKit.isInstalled()) {
+        toast({
+          title: texts.error,
+          description: "World App no está instalada",
+          variant: "destructive",
+        })
+        return
+      }
 
-    const result = await MiniKit.commandsAsync.pay({
-      reference: id,
-      to: address ?? "0x0000000000000000000000000000000000000000",
-      tokens: [
-        {
-          symbol: Tokens.WLD,
-          token_amount: tokenToDecimals(0.5, Tokens.WLD).toString(),
-        },
-        {
-          symbol: Tokens.USDCE,
-          token_amount: tokenToDecimals(0.1, Tokens.USDCE).toString(),
-        },
-      ],
-      description: "Test example payment for minikit",
-    })
+      // Iniciar el pago en el backend
+      const res = await fetch("/api/initiate-payment", {
+        method: "POST",
+      })
 
-    console.log(result.finalPayload)
-    if (result.finalPayload.status === "success") {
-      setButtonState("success")
-      // It's important to actually check the transaction result on-chain
-      // You should confirm the reference id matches for security
-      // Read more here: https://docs.world.org/mini-apps/commands/pay#verifying-the-payment
-    } else {
-      setButtonState("failed")
-      setTimeout(() => {
-        setButtonState(undefined)
-      }, 3000)
+      if (!res.ok) {
+        throw new Error("Error al iniciar el pago")
+      }
+
+      const { id } = await res.json()
+
+      // Configurar el payload de pago
+      const payload: PayCommandInput = {
+        reference: id,
+        to: process.env.NEXT_PUBLIC_RECIPIENT_ADDRESS || "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+        tokens: [
+          {
+            symbol: Tokens.WLD,
+            token_amount: tokenToDecimals(0.1, Tokens.WLD).toString(),
+          },
+        ],
+        description: "Pago para jugar GoodBomb",
+      }
+
+      // Ejecutar el comando de pago
+      const { finalPayload } = await MiniKit.commandsAsync.pay(payload)
+
+      if (finalPayload.status === "success") {
+        // Confirmar el pago en el backend
+        const confirmRes = await fetch("/api/confirm-payment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(finalPayload),
+        })
+
+        const payment = await confirmRes.json()
+
+        if (payment.success) {
+          toast({
+            title: texts.bombActivated,
+            description: texts.bombActivatedDesc,
+          })
+
+          // Aquí puedes actualizar el estado del juego
+          // Por ejemplo, reiniciar el temporizador, actualizar el pozo, etc.
+        } else {
+          throw new Error("Error al confirmar el pago")
+        }
+      } else {
+        toast({
+          title: texts.transactionError,
+          description: texts.transactionErrorDesc,
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error de pago:", error)
+      toast({
+        title: texts.error,
+        description: texts.errorDesc,
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
     }
   }
 
   return (
-    <div className="grid w-full gap-4">
-      <p className="text-lg font-semibold">Pay</p>
-      <LiveFeedback
-        label={{
-          failed: "Payment failed",
-          pending: "Payment pending",
-          success: "Payment successful",
-        }}
-        state={buttonState}
-        className="w-full"
-      >
-        <Button
-          onClick={onClickPay}
-          disabled={buttonState === "pending"}
-          size="lg"
-          variant="primary"
-          className="w-full"
-        >
-          Pay
-        </Button>
-      </LiveFeedback>
-    </div>
+    <Button
+      onClick={sendPayment}
+      disabled={isLoading}
+      className="w-full py-6 px-4 bg-red-700 hover:bg-red-800 text-white font-bold"
+    >
+      {isLoading ? "Procesando..." : "Presionar el botón (0.1 WLD)"}
+    </Button>
   )
 }
-
-export default Pay

@@ -10,48 +10,10 @@ import BombAnimation from "@/components/bomb-animation"
 import MilitaryCharacter from "@/components/military-character"
 import MilitaryButton from "@/components/military-button"
 import MilitaryFrame from "@/components/military-frame"
-import { MiniKit, tokenToDecimals, Tokens, PayCommandInput } from '@worldcoin/minikit-js'
+import WorldIDVerification from "@/components/world-id-verification"
+import Pay from "@/components/pay"
+import { MiniKit } from "@worldcoin/minikit-js"
 
-const sendPayment = async () => {
-  const res = await fetch('/api/initiate-payment', {
-    method: 'POST',
-  })
-  const { id } = await res.json()
-
-  const payload: PayCommandInput = {
-    reference: id,
-    to: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045', // Test address
-    tokens: [
-      {
-        symbol: Tokens.WLD,
-        token_amount: tokenToDecimals(1, Tokens.WLD).toString(),
-      },
-      {
-        symbol: Tokens.USDCE,
-        token_amount: tokenToDecimals(3, Tokens.USDCE).toString(),
-      },
-    ],
-    description: 'Test example payment for minikit',
-  }
-
-  if (!MiniKit.isInstalled()) {
-    return
-  }
-
-  const { finalPayload } = await MiniKit.commandsAsync.pay(payload)
-
-  if (finalPayload.status == 'success') {
-    const res = await fetch(`/api/confirm-payment`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(finalPayload),
-    })
-    const payment = await res.json()
-    if (payment.success) {
-      // Congrats your payment was successful!
-    }
-  }
-}
 // Función auxiliar para reproducir sonidos de manera segura
 const playSoundSafely = (soundPath: string) => {
   try {
@@ -80,8 +42,32 @@ export default function GameComponent() {
   const [isButtonDisabled, setIsButtonDisabled] = useState(false)
   const [currentTime, setCurrentTime] = useState(new Date())
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isWorldAppInstalled, setIsWorldAppInstalled] = useState(false)
+  const [username, setUsername] = useState<string | null>(null)
   const { toast } = useToast()
   const { language, soundEnabled, theme, texts } = useSettings()
+
+  // Verificar si World App está instalada
+  useEffect(() => {
+    const checkWorldApp = async () => {
+      const installed = MiniKit.isInstalled()
+      setIsWorldAppInstalled(installed)
+
+      if (installed) {
+        try {
+          // Intentar obtener el nombre de usuario
+          const user = await MiniKit.getUser()
+          if (user && user.username) {
+            setUsername(user.username)
+          }
+        } catch (error) {
+          console.error("Error al obtener el usuario:", error)
+        }
+      }
+    }
+
+    checkWorldApp()
+  }, [])
 
   // Update current time
   useEffect(() => {
@@ -129,8 +115,8 @@ export default function GameComponent() {
     }, 3000)
   }, [lastPlayer, pot, toast, soundEnabled, texts])
 
-  // Handle button press
-  const handleButtonPress = useCallback(() => {
+  // Handle button press with World App integration
+  const handleButtonPress = useCallback(async () => {
     try {
       setIsButtonDisabled(true)
 
@@ -138,9 +124,11 @@ export default function GameComponent() {
         playSoundSafely("/sounds/button-press.mp3")
       }
 
-      const mockUsername = "Usuario" + Math.floor(Math.random() * 1000)
+      // Si World App está instalada, usamos el nombre de usuario real
+      const displayName = username || "Usuario" + Math.floor(Math.random() * 1000)
+
       setTimeLeft(240)
-      setLastPlayer(mockUsername)
+      setLastPlayer(displayName)
       setPot((prev) => prev + 0.1)
 
       toast({
@@ -157,7 +145,7 @@ export default function GameComponent() {
     } finally {
       setIsButtonDisabled(false)
     }
-  }, [toast, soundEnabled, texts])
+  }, [toast, soundEnabled, texts, username])
 
   // Format current time
   const formattedTime = currentTime.toLocaleTimeString(language === "es" ? "es-ES" : "en-US", {
@@ -183,6 +171,7 @@ export default function GameComponent() {
               <span className="text-olive-300 text-sm">{formattedTime}</span>
             </div>
             <div className="flex items-center gap-2">
+              {username && <span className="text-olive-300 text-sm">@{username}</span>}
               <button
                 onClick={() => setIsSettingsOpen(true)}
                 className="text-olive-300 hover:text-white transition-colors"
@@ -193,6 +182,13 @@ export default function GameComponent() {
           </div>
 
           <div className="p-5">
+            {/* World ID Verification */}
+            {isWorldAppInstalled && (
+              <div className="mb-4">
+                <WorldIDVerification />
+              </div>
+            )}
+
             {/* Timer Display */}
             <div className="flex justify-center mb-4">
               <div className="flex items-center gap-2 px-4 py-2 rounded-md bg-black/70 border-2 border-olive-600">
@@ -234,12 +230,16 @@ export default function GameComponent() {
             </div>
 
             {/* Action Button */}
-            <MilitaryButton
-              onClick={handleButtonPress}
-              disabled={isButtonDisabled || isExploding}
-              isUrgent={isUrgent}
-              text={texts.pressButton}
-            />
+            {isWorldAppInstalled ? (
+              <Pay />
+            ) : (
+              <MilitaryButton
+                onClick={handleButtonPress}
+                disabled={isButtonDisabled || isExploding}
+                isUrgent={isUrgent}
+                text={texts.pressButton}
+              />
+            )}
           </div>
         </MilitaryFrame>
       </div>
