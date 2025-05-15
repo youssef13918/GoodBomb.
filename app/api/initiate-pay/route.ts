@@ -1,10 +1,9 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from 'next/server'
 
-export async function POST() {
-  const uuid = crypto.randomUUID().replace(/-/g, "")
+export async function POST(req: NextRequest) {
+	const uuid = crypto.randomUUID().replace(/-/g, '')
 
-  // En una implementación real, guardaríamos este ID en la base de datos
-  // para verificar el pago más tarde
+	// TODO: Store the ID field in your database so you can verify the payment later
 
-  return NextResponse.json({ id: uuid })
+	return NextResponse.json({ id: uuid })
 }

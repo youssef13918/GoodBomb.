@@ -1,52 +1,35 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse } from 'next/server'
+import { MiniAppPaymentSuccessPayload } from '@worldcoin/minikit-js'
 
-// En una implementación real, esto se almacenaría en una base de datos
-const players: { username: string; timestamp: number }[] = []
-
-export async function GET() {
-  return NextResponse.json({ players: players.slice(0, 5) })
+interface IRequestPayload {
+	payload: MiniAppPaymentSuccessPayload
 }
 
 export async function POST(req: NextRequest) {
-  try {
-    const payload = await req.json()
+	const { payload } = (await req.json()) as IRequestPayload
 
-    // Validar el payload del pago
-    if (!payload || payload.status !== "success") {
-      return NextResponse.json({ success: false, error: "Payload de pago inválido" }, { status: 400 })
-    }
+	// IMPORTANT: Here we should fetch the reference you created in /initiate-payment to ensure the transaction we are verifying is the same one we initiated
+	const reference = getReferenceFromDB()
 
-    // En una implementación real, verificarías el pago con la API de World ID
-    // y actualizarías tu base de datos
+	// 1. Check that the transaction we received from the mini app is the same one we sent
+	if (payload.reference === reference) {
+		const response = await fetch(
+			`https://developer.worldcoin.org/api/v2/minikit/transaction/${payload.transaction_id}?app_id=${process.env.APP_ID}`,
+			{
+				method: 'GET',
+				headers: {
+					Authorization: `Bearer ${process.env.DEV_PORTAL_API_KEY}`,
+				},
+			}
+		)
+		const transaction = await response.json()
 
-    // Extraer nombre de usuario del payload o usar uno predeterminado
-    const username = payload.username || "Anónimo"
-
-    // Añadir usuario al historial
-    players.unshift({
-      username,
-      timestamp: Date.now(),
-    })
-
-    // Mantener solo los últimos 100 jugadores
-    if (players.length > 100) {
-      players.length = 100
-    }
-
-    // Devolver respuesta de éxito
-    return NextResponse.json({
-      success: true,
-      message: "Pago confirmado exitosamente",
-      username,
-    })
-  } catch (error) {
-    console.error("Error al confirmar pago:", error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Error al procesar la confirmación del pago",
-      },
-      { status: 500 },
-    )
-  }
+		// 2. Here we optimistically confirm the transaction.
+		// Otherwise, you can poll until the status == mined
+		if (transaction.reference == reference && transaction.status != 'failed') {
+			return NextResponse.json({ success: true })
+		} else {
+			return NextResponse.json({ success: false })
+		}
+	}
 }
