@@ -1,20 +1,24 @@
 import type React from "react"
-import type { Metadata } from "next"
-import ClientLayout from "./clientLayout"
+import { MiniKitProvider } from "@worldcoin/minikit-js"
+import { Inter } from "next/font/google"
+import "./globals.css"
 
-export const metadata: Metadata = {
-  title: "GoodBomb - Juego de Bombas",
-  description: "Presiona el botón, reinicia el temporizador y gana el pozo",
-    generator: 'v0.dev'
-}
+const inter = Inter({ subsets: ["latin"] })
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode
-}>) {
-  return <ClientLayout>{children}</ClientLayout>
+}) {
+  return (
+    <html lang="en">
+      <body className={inter.className}>
+        <MiniKitProvider appId={process.env.NEXT_PUBLIC_APP_ID || ""}>{children}</MiniKitProvider>
+      </body>
+    </html>
+  )
 }
 
-
-import './globals.css'
+export const metadata = {
+      generator: 'v0.dev'
+    };

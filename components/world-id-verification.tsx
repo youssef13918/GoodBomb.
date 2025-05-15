@@ -6,8 +6,10 @@ import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { User, AlertTriangle, Check } from "lucide-react"
 import { useGame } from "@/context/game-context"
-// Importar desde clientLayout
-import { useMiniKit } from "@/app/clientLayout"
+// Replace the line:
+// import { useMiniKit } from "@/app/clientLayout"
+// with:
+import { useMiniKit } from "@worldcoin/minikit-js"
 
 export default function WorldIDVerification() {
   const [isLoading, setIsLoading] = useState(false)

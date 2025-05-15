@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { User, AlertTriangle, Check } from "lucide-react"
 // Importar desde clientLayout
-import { useMiniKit } from "@/app/clientLayout"
+import { useMiniKit } from "@worldcoin/minikit-js"
 
 interface WorldButtonProps {
   onSuccess: (username: string) => void
