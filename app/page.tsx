@@ -10,25 +10,25 @@ import BombAnimation from "@/components/bomb-animation"
 import MilitaryCharacter from "@/components/military-character"
 import MilitaryButton from "@/components/military-button"
 import MilitaryFrame from "@/components/military-frame"
-import { MiniKit, tokenToDecimals, Tokens, PayCommandInput } from '@worldcoin/minikit-js'
+import WorldButton from "@/components/world-button"
 
-// Función auxiliar para reproducir sonidos de manera segura
+// Helper function to safely play sounds
 const playSoundSafely = (soundPath: string) => {
   try {
     const sound = new Audio(soundPath)
     sound.addEventListener("error", (e) => {
-      console.log(`Error al cargar el sonido ${soundPath}: ${e.message}`)
+      console.log(`Error loading sound ${soundPath}: ${e.message}`)
     })
 
     const playPromise = sound.play()
 
     if (playPromise !== undefined) {
       playPromise.catch((error) => {
-        console.log(`Error al reproducir el sonido: ${error.message}`)
+        console.log(`Error playing sound: ${error.message}`)
       })
     }
   } catch (error) {
-    console.log(`Error al crear el objeto de audio: ${error}`)
+    console.log(`Error creating audio object: ${error}`)
   }
 }
 
@@ -90,34 +90,37 @@ export default function Home() {
   }, [lastPlayer, pot, toast, soundEnabled, texts])
 
   // Handle button press
-  const handleButtonPress = useCallback(async () => {
-    try {
-      setIsButtonDisabled(true)
+  const handleButtonPress = useCallback(
+    async (username?: string) => {
+      try {
+        setIsButtonDisabled(true)
 
-      if (soundEnabled) {
-        playSoundSafely("/sounds/button-press.mp3")
+        if (soundEnabled) {
+          playSoundSafely("/sounds/button-press.mp3")
+        }
+
+        const playerName = username || "Usuario" + Math.floor(Math.random() * 1000)
+        setTimeLeft(240)
+        setLastPlayer(playerName)
+        setPot((prev) => prev + 0.1)
+
+        toast({
+          title: texts.bombActivated,
+          description: texts.bombActivatedDesc,
+        })
+      } catch (error) {
+        console.error("Error:", error)
+        toast({
+          title: texts.error,
+          description: texts.errorDesc,
+          variant: "destructive",
+        })
+      } finally {
+        setIsButtonDisabled(false)
       }
-
-      const mockUsername = "Usuario" + Math.floor(Math.random() * 1000)
-      setTimeLeft(240)
-      setLastPlayer(mockUsername)
-      setPot((prev) => prev + 0.1)
-
-      toast({
-        title: texts.bombActivated,
-        description: texts.bombActivatedDesc,
-      })
-    } catch (error) {
-      console.error("Error:", error)
-      toast({
-        title: texts.error,
-        description: texts.errorDesc,
-        variant: "destructive",
-      })
-    } finally {
-      setIsButtonDisabled(false)
-    }
-  }, [toast, soundEnabled, texts])
+    },
+    [toast, soundEnabled, texts],
+  )
 
   // Format current time
   const formattedTime = currentTime.toLocaleTimeString(language === "es" ? "es-ES" : "en-US", {
@@ -194,12 +197,16 @@ export default function Home() {
             </div>
 
             {/* Action Button */}
-            <MilitaryButton
-              onClick={handleButtonPress}
-              disabled={isButtonDisabled || isExploding}
-              isUrgent={isUrgent}
-              text={texts.pressButton}
-            />
+            {process.env.NEXT_PUBLIC_RECIPIENT_ADDRESS ? (
+              <WorldButton onSuccess={handleButtonPress} recipientAddress={process.env.NEXT_PUBLIC_RECIPIENT_ADDRESS} />
+            ) : (
+              <MilitaryButton
+                onClick={() => handleButtonPress()}
+                disabled={isButtonDisabled || isExploding}
+                isUrgent={isUrgent}
+                text={texts.pressButton}
+              />
+            )}
           </div>
         </MilitaryFrame>
       </div>

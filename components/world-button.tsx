@@ -8,39 +8,59 @@ import { User, AlertTriangle, Check } from "lucide-react"
 
 interface WorldButtonProps {
   onSuccess: (username: string) => void
-  recipientAddress: string
+  recipientAddress?: string
 }
 
-export default function WorldButton({ onSuccess, recipientAddress }: WorldButtonProps) {
+export default function WorldButton({
+  onSuccess,
+  recipientAddress = process.env.NEXT_PUBLIC_RECIPIENT_ADDRESS || "",
+}: WorldButtonProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [isVerified, setIsVerified] = useState(false)
   const [username, setUsername] = useState<string | null>(null)
   const [isWorldAppInstalled, setIsWorldAppInstalled] = useState(false)
-  const [isDevelopmentMode, setIsDevelopmentMode] = useState(true) // Por defecto en modo desarrollo
+  const [isDevelopmentMode, setIsDevelopmentMode] = useState(true) // Default to development mode
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
 
-  // Verificar si World App está instalada
+  // Check if World App is installed
   useEffect(() => {
     const checkWorldApp = async () => {
       try {
-        // Verificar si estamos en un entorno de navegador
+        // Check if we're in a browser environment
         if (typeof window === "undefined") {
           setIsDevelopmentMode(true)
           return
         }
 
-        // Importar MiniKit dinámicamente para evitar errores
+        // Try to dynamically import MiniKit to avoid errors
         try {
-          // En lugar de importar MiniKit, simplemente asumimos que estamos en modo desarrollo
-          setIsDevelopmentMode(true)
-          setUsername("dev_user")
+          // Check if MiniKit is available globally
+          if (typeof window !== "undefined" && "MiniKit" in window) {
+            setIsWorldAppInstalled(true)
+            setIsDevelopmentMode(false)
+
+            // Try to get the username
+            try {
+              // @ts-ignore - MiniKit is available globally
+              const user = await window.MiniKit.getUser()
+              if (user && user.username) {
+                setUsername(user.username)
+              }
+            } catch (userError) {
+              console.error("Error getting user:", userError)
+            }
+          } else {
+            console.log("MiniKit not found, using development mode")
+            setIsDevelopmentMode(true)
+            setUsername("dev_user")
+          }
         } catch (error) {
-          console.error("Error general:", error)
+          console.error("Error checking MiniKit:", error)
           setIsDevelopmentMode(true)
         }
       } catch (error) {
-        console.error("Error general:", error)
+        console.error("General error:", error)
         setIsDevelopmentMode(true)
       }
     }
@@ -53,46 +73,46 @@ export default function WorldButton({ onSuccess, recipientAddress }: WorldButton
       setIsLoading(true)
       setError(null)
 
-      // Si estamos en modo desarrollo, simulamos el proceso
+      // If we're in development mode, simulate the process
       if (isDevelopmentMode) {
-        // Simular un retraso
+        // Simulate a delay
         await new Promise((resolve) => setTimeout(resolve, 1500))
 
-        // Simular verificación exitosa
+        // Simulate successful verification
         setIsVerified(true)
 
-        // Simular nombre de usuario
-        const mockUsername = "Usuario" + Math.floor(Math.random() * 1000)
+        // Simulate username
+        const mockUsername = "User" + Math.floor(Math.random() * 1000)
 
-        // Notificar éxito
+        // Notify success
         toast({
-          title: "¡Simulación exitosa!",
-          description: "Modo desarrollo: Verificación y pago simulados",
+          title: "Simulation successful!",
+          description: "Development mode: Verification and payment simulated",
         })
 
-        // Llamar al callback con el nombre de usuario simulado
+        // Call the callback with the simulated username
         onSuccess(mockUsername)
         return
       }
 
-      // Código real para World App (solo se ejecutará si isWorldAppInstalled es true)
+      // Real code for World App (will only execute if isWorldAppInstalled is true)
       if (!isWorldAppInstalled) {
-        setError("World App no está instalada. Por favor, abre esta aplicación desde World App.")
+        setError("World App is not installed. Please open this application from World App.")
         return
       }
 
-      // En modo desarrollo, no intentamos importar MiniKit
+      // In development mode, we don't try to import MiniKit
       if (!isDevelopmentMode) {
-        // Este código nunca se ejecutará en modo desarrollo
-        setError("Esta funcionalidad solo está disponible en World App.")
+        // This code will never execute in development mode
+        setError("This functionality is only available in World App.")
         return
       }
     } catch (error) {
       console.error("Error:", error)
-      setError(error instanceof Error ? error.message : "Error desconocido")
+      setError(error instanceof Error ? error.message : "Unknown error")
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Error desconocido",
+        description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       })
     } finally {
@@ -113,15 +133,15 @@ export default function WorldButton({ onSuccess, recipientAddress }: WorldButton
       {isVerified && (
         <Alert>
           <Check className="h-4 w-4 text-green-500" />
-          <AlertTitle>Verificado con World ID</AlertTitle>
-          <AlertDescription>Tu identidad ha sido verificada</AlertDescription>
+          <AlertTitle>Verified with World ID</AlertTitle>
+          <AlertDescription>Your identity has been verified</AlertDescription>
         </Alert>
       )}
 
       {username && (
         <div className="flex items-center gap-2 p-2 bg-gray-100 dark:bg-gray-800 rounded-md">
           <User className="h-4 w-4" />
-          <span>Usuario: {username}</span>
+          <span>User: {username}</span>
         </div>
       )}
 
@@ -130,7 +150,7 @@ export default function WorldButton({ onSuccess, recipientAddress }: WorldButton
         disabled={isLoading}
         className="w-full py-6 bg-red-600 hover:bg-red-700 text-white font-bold text-lg"
       >
-        {isLoading ? "Procesando..." : isDevelopmentMode ? "Presiona el botón (Modo desarrollo)" : "Presiona el botón"}
+        {isLoading ? "Processing..." : isDevelopmentMode ? "Press the button (Development mode)" : "Press the button"}
       </Button>
     </div>
   )
