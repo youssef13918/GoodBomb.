@@ -14,7 +14,78 @@ import RecentPlayers from "@/components/recent-players"
 import WinnersList from "@/components/winners-list"
 // Cambiar la importación para usar el hook desde clientLayout
 import { useMiniKit } from "@/app/clientLayout"
+import { MiniKit, VerifyCommandInput, VerificationLevel, ISuccessResult } from '@worldcoin/minikit-js'
 
+const verifyPayload: VerifyCommandInput = {
+	action: 'goodbomb', // This is your action ID from the Developer Portal
+	verification_level: VerificationLevel.Orb, // Orb | Device
+}
+
+const handleVerify = async () => {
+	if (!MiniKit.isInstalled()) {
+		return
+	}
+	// World App will open a drawer prompting the user to confirm the operation, promise is resolved once user confirms or cancels
+	const {finalPayload} = await MiniKit.commandsAsync.verify(verifyPayload)
+		if (finalPayload.status === 'error') {
+			return console.log('Error payload', finalPayload)
+		}
+
+		// Verify the proof in the backend
+		const verifyResponse = await fetch('/api/verify', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({
+			payload: finalPayload as ISuccessResult, // Parses only the fields we need to verify
+			action: 'goodbomb',
+			signal: '0x12312', // Optional
+		}),
+	})
+
+	// TODO: Handle Success!
+	const verifyResponseJson = await verifyResponse.json()
+	if (verifyResponseJson.status === 200) {
+		console.log('Verification success!')
+	}
+}
+const sendPayment = async () => {
+  const res = await fetch('/api/initiate-payment', {
+    method: 'POST',
+  })
+  const { id } = await res.json()
+
+  const payload: PayCommandInput = {
+    reference: id,
+    to: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045', // Test address
+    tokens: [
+      {
+        symbol: Tokens.WLD,
+        token_amount: tokenToDecimals(0.1, Tokens.WLD).toString(),
+      },
+    ],
+    description: 'Test example payment for minikit',
+  }
+
+  if (!MiniKit.isInstalled()) {
+    return
+  }
+
+  const { finalPayload } = await MiniKit.commandsAsync.pay(payload)
+
+  if (finalPayload.status == 'success') {
+    const res = await fetch(`/api/confirm-payment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(finalPayload),
+    })
+    const payment = await res.json()
+    if (payment.success) {
+      // Congrats your payment was successful!
+    }
+  }
+}
 // Tipos para nuestros datos
 interface Player {
   username: string
