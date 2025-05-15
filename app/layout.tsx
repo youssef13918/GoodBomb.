@@ -1,12 +1,6 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Inter } from "next/font/google"
-import "./globals.css"
-import { ThemeProvider } from "@/components/theme-provider"
-import { Toaster } from "@/components/ui/toaster"
-import { SettingsProvider } from "@/context/settings-context"
-
-const inter = Inter({ subsets: ["latin"] })
+import ClientLayout from "./clientLayout"
 
 export const metadata: Metadata = {
   title: "GoodBomb - Juego de Bombas",
@@ -19,16 +13,8 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  return (
-    <html lang="es">
-      <body className={inter.className}>
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
-          <SettingsProvider>
-            {children}
-            <Toaster />
-          </SettingsProvider>
-        </ThemeProvider>
-      </body>
-    </html>
-  )
+  return <ClientLayout>{children}</ClientLayout>
 }
+
+
+import './globals.css'

@@ -6,17 +6,26 @@ import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { User, AlertTriangle, Check } from "lucide-react"
 import { useGame } from "@/context/game-context"
+// Importar desde clientLayout
+import { useMiniKit } from "@/app/clientLayout"
 
 export default function WorldIDVerification() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { isVerified, currentUser, verifyUser } = useGame()
   const { toast } = useToast()
+  const miniKit = useMiniKit()
 
   const handleVerification = async () => {
     try {
       setIsLoading(true)
       setError(null)
+
+      if (!miniKit) {
+        setError("MiniKit no está disponible. Por favor, abre esta aplicación desde World App.")
+        setIsLoading(false)
+        return
+      }
 
       const success = await verifyUser()
 

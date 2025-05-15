@@ -1,47 +1,50 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-// In a real implementation, this would be stored in a database
-const users: { username: string; timestamp: number }[] = []
+// En una implementación real, esto se almacenaría en una base de datos
+const players: { username: string; timestamp: number }[] = []
 
 export async function GET() {
-  return NextResponse.json({ users })
+  return NextResponse.json({ players: players.slice(0, 5) })
 }
 
 export async function POST(req: NextRequest) {
   try {
     const payload = await req.json()
 
-    // Validate the payment payload
+    // Validar el payload del pago
     if (!payload || payload.status !== "success") {
-      return NextResponse.json({ success: false, error: "Invalid payment payload" }, { status: 400 })
+      return NextResponse.json({ success: false, error: "Payload de pago inválido" }, { status: 400 })
     }
 
-    // In a real implementation, you would:
-    // 1. Verify the payment with World ID's API
-    // 2. Update your database with the payment information
-    // 3. Update the game state
+    // En una implementación real, verificarías el pago con la API de World ID
+    // y actualizarías tu base de datos
 
-    // Extract username from the payload or use a default
-    const username = payload.username || "Anonymous"
+    // Extraer nombre de usuario del payload o usar uno predeterminado
+    const username = payload.username || "Anónimo"
 
-    // Add user to history
-    users.push({
+    // Añadir usuario al historial
+    players.unshift({
       username,
       timestamp: Date.now(),
     })
 
-    // Return success response
+    // Mantener solo los últimos 100 jugadores
+    if (players.length > 100) {
+      players.length = 100
+    }
+
+    // Devolver respuesta de éxito
     return NextResponse.json({
       success: true,
-      message: "Payment confirmed successfully",
+      message: "Pago confirmado exitosamente",
       username,
     })
   } catch (error) {
-    console.error("Error confirming payment:", error)
+    console.error("Error al confirmar pago:", error)
     return NextResponse.json(
       {
         success: false,
-        error: "Error processing payment confirmation",
+        error: "Error al procesar la confirmación del pago",
       },
       { status: 500 },
     )

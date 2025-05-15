@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import { useToast } from "@/hooks/use-toast"
+// No hay importación de MiniKit aquí, así que no necesitamos cambiar nada
 
 // Tipos para nuestros datos
 export interface Player {
@@ -147,14 +148,29 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // Verificar usuario con World ID
   const verifyUser = async (): Promise<boolean> => {
     try {
-      // En un entorno real, verificaríamos con World ID
-      // Para desarrollo, simulamos la verificación
-
       // Intentar obtener el usuario de MiniKit
       if (typeof window !== "undefined" && "MiniKit" in window) {
         try {
           // @ts-ignore - MiniKit está disponible globalmente
-          const user = await window.MiniKit.getUser()
+          const miniKit = window.MiniKit
+
+          // Verificar con World ID
+          const verificationResult = await miniKit.verify({
+            action: "verify_user",
+            signal: "wld_jp_" + Date.now().toString(),
+          })
+
+          if (verificationResult.status !== "success") {
+            toast({
+              title: "Error de verificación",
+              description: "No se pudo verificar tu identidad. Inténtalo de nuevo.",
+              variant: "destructive",
+            })
+            return false
+          }
+
+          // Obtener información del usuario
+          const user = await miniKit.getUser()
           if (user && user.username) {
             setCurrentUser({
               id: user.id || `user-${Date.now()}`,
@@ -165,10 +181,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
           }
         } catch (error) {
           console.error("Error obteniendo usuario de MiniKit:", error)
+          toast({
+            title: "Error de verificación",
+            description: "No se pudo verificar tu identidad. Inténtalo de nuevo.",
+            variant: "destructive",
+          })
+          return false
         }
       }
 
-      // Modo desarrollo - simular usuario
+      // Modo desarrollo - simular usuario si MiniKit no está disponible
       const mockId = `dev-${Date.now()}`
       const mockUsername = `Usuario${Math.floor(Math.random() * 1000)}`
 
@@ -219,6 +241,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
       if (typeof window !== "undefined" && "MiniKit" in window) {
         try {
+          // @ts-ignore - MiniKit está disponible globalmente
+          const miniKit = window.MiniKit
+
           // Obtener ID único para el pago
           const response = await fetch("/api/initiate-pay", {
             method: "POST",
@@ -229,8 +254,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
           const { id } = await response.json()
 
-          // @ts-ignore - MiniKit está disponible globalmente
-          const result = await window.MiniKit.pay({
+          const result = await miniKit.pay({
             id,
             amount: "0.1",
             token: "WLD",
@@ -239,9 +263,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
           if (result && result.status === "success") {
             paymentSuccess = true
+          } else {
+            toast({
+              title: "Error en el pago",
+              description: "No se pudo completar el pago. Inténtalo de nuevo.",
+            })
+            return false
           }
         } catch (error) {
           console.error("Error en pago con MiniKit:", error)
+          toast({
+            title: "Error en el pago",
+            description: "No se pudo completar el pago. Inténtalo de nuevo.",
+          })
+          return false
         }
       } else {
         // Modo desarrollo - simular pago exitoso
@@ -278,7 +313,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
         toast({
           title: "Error en el pago",
           description: "No se pudo completar el pago. Inténtalo de nuevo.",
-          variant: "destructive",
         })
         return false
       }

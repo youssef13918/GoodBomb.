@@ -1,12 +1,18 @@
 "use client"
 
-import { useGame } from "@/context/game-context"
 import { User, Clock } from "lucide-react"
 
-export default function RecentPlayers() {
-  const { recentPlayers } = useGame()
+interface Player {
+  username: string
+  timestamp: number
+}
 
-  if (recentPlayers.length === 0) {
+interface RecentPlayersProps {
+  players: Player[]
+}
+
+export default function RecentPlayers({ players }: RecentPlayersProps) {
+  if (players.length === 0) {
     return (
       <div className="p-3 bg-black/40 border border-olive-600 rounded-md text-center">
         <p className="text-gray-400">No hay jugadores recientes</p>
@@ -21,9 +27,9 @@ export default function RecentPlayers() {
         <span>ÚLTIMOS JUGADORES</span>
       </h3>
       <ul className="space-y-2">
-        {recentPlayers.map((player, index) => (
+        {players.map((player, index) => (
           <li
-            key={`${player.id}-${player.timestamp}`}
+            key={`${player.username}-${player.timestamp}`}
             className={`flex items-center gap-2 p-2 rounded-md ${index === 0 ? "bg-olive-800/50 border border-olive-700" : "bg-black/30"}`}
           >
             <User className={`${index === 0 ? "text-yellow-400" : "text-olive-400"}`} size={16} />
