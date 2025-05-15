@@ -2,16 +2,17 @@
 
 import { useState } from "react"
 import { AlertTriangle } from "lucide-react"
+import { useGame } from "@/context/game-context"
 
-interface MilitaryButtonProps {
-  onClick: () => void
-  disabled: boolean
-  isUrgent: boolean
+interface GamePayButtonProps {
   text: string
 }
 
-export default function MilitaryButton({ onClick, disabled, isUrgent, text }: MilitaryButtonProps) {
+export default function GamePayButton({ text }: GamePayButtonProps) {
   const [isPressed, setIsPressed] = useState(false)
+  const { isButtonDisabled, pressButton, timeLeft } = useGame()
+
+  const isUrgent = timeLeft <= 30
 
   const handleMouseDown = () => {
     setIsPressed(true)
@@ -21,9 +22,9 @@ export default function MilitaryButton({ onClick, disabled, isUrgent, text }: Mi
     setIsPressed(false)
   }
 
-  const handleClick = () => {
-    if (!disabled) {
-      onClick()
+  const handleClick = async () => {
+    if (!isButtonDisabled) {
+      await pressButton()
     }
   }
 
@@ -37,12 +38,12 @@ export default function MilitaryButton({ onClick, disabled, isUrgent, text }: Mi
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
-        disabled={disabled}
+        disabled={isButtonDisabled}
         className={`
           relative w-full py-6 px-4 rounded-md font-military text-xl uppercase tracking-wider
           border-2 border-gray-900 shadow-lg transition-all duration-100
           ${isPressed ? "translate-y-2 shadow-none" : "translate-y-0 shadow-lg"}
-          ${disabled ? "opacity-70 cursor-not-allowed" : "cursor-pointer"}
+          ${isButtonDisabled ? "opacity-70 cursor-not-allowed" : "cursor-pointer"}
           ${isUrgent ? "animate-pulse bg-red-600 hover:bg-red-700" : "bg-red-700 hover:bg-red-800"}
         `}
         style={{
