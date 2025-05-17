@@ -1,16 +1,19 @@
-import { NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from "next/server"
 
-// En una implementación real, esto se almacenaría en una base de datos
+// This would be stored in a database in a real implementation
 let gameState = {
   timeLeft: 240,
   lastPlayer: "Nadie aún",
-  pot: 0,
+  pot: 0.1,
+  buttonPresses: 0,
   isActive: true,
   lastUpdated: Date.now(),
+  recentPlayers: [],
+  registeredPlayers: [],
 }
 
 export async function GET() {
-  // Actualizar el tiempo restante basado en el tiempo transcurrido desde la última actualización
+  // Update remaining time based on elapsed time since last update
   const now = Date.now()
   const elapsedSeconds = Math.floor((now - gameState.lastUpdated) / 1000)
 
@@ -18,7 +21,7 @@ export async function GET() {
     gameState.timeLeft = Math.max(0, gameState.timeLeft - elapsedSeconds)
     gameState.lastUpdated = now
 
-    // Verificar si el juego terminó
+    // Check if game ended
     if (gameState.timeLeft === 0) {
       gameState.isActive = false
     }
@@ -27,38 +30,68 @@ export async function GET() {
   return NextResponse.json(gameState)
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const data = await request.json()
 
-    // Validar datos
+    // Validate data
     if (!data.player) {
-      return NextResponse.json({ error: "Datos inválidos" }, { status: 400 })
+      return NextResponse.json({ error: "Invalid data" }, { status: 400 })
     }
 
-    // Actualizar el estado del juego
+    // Update game state
     gameState = {
-      timeLeft: 240, // Reiniciar temporizador
+      ...gameState,
+      timeLeft: 240, // Reset timer
       lastPlayer: data.player,
       pot: gameState.pot + 0.1,
+      buttonPresses: gameState.buttonPresses + 1,
       isActive: true,
       lastUpdated: Date.now(),
+      recentPlayers: [{ username: data.player, timestamp: Date.now() }, ...gameState.recentPlayers.slice(0, 4)],
     }
 
     return NextResponse.json(gameState)
   } catch (error) {
-    console.error("Error al actualizar el estado del juego:", error)
-    return NextResponse.json({ error: "Error al actualizar el estado del juego" }, { status: 500 })
+    console.error("Error updating game state:", error)
+    return NextResponse.json({ error: "Error updating game state" }, { status: 500 })
   }
 }
 
-export async function PUT(request: Request) {
+export async function PUT(request: NextRequest) {
   try {
     const data = await request.json()
 
-    // Reiniciar juego después de explosión
+    // Register player
+    if (data.action === "register" && data.username) {
+      // Check if username already exists
+      if (gameState.registeredPlayers.some((p) => p.username === data.username)) {
+        return NextResponse.json(
+          {
+            error: "Username already taken",
+          },
+          { status: 400 },
+        )
+      }
+
+      const newPlayer = {
+        id: `player-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        username: data.username,
+        timestamp: Date.now(),
+      }
+
+      gameState.registeredPlayers.push(newPlayer)
+
+      return NextResponse.json({
+        success: true,
+        player: newPlayer,
+      })
+    }
+
+    // Reset game after explosion
     if (data.action === "reset") {
       gameState = {
+        ...gameState,
         timeLeft: 240,
         lastPlayer: "Nadie aún",
         pot: 0,
@@ -69,28 +102,9 @@ export async function PUT(request: Request) {
       return NextResponse.json(gameState)
     }
 
-    // Pago al ganador
-    if (data.action === "payout" && data.winner) {
-      // En una implementación real, aquí se procesaría el pago al ganador
-
-      // Reiniciar juego
-      gameState = {
-        timeLeft: 240,
-        lastPlayer: "Nadie aún",
-        pot: 0,
-        isActive: true,
-        lastUpdated: Date.now(),
-      }
-
-      return NextResponse.json({
-        message: `Pago de ${data.amount} WLD enviado a ${data.winner}`,
-        gameState,
-      })
-    }
-
-    return NextResponse.json({ error: "Acción inválida" }, { status: 400 })
+    return NextResponse.json({ error: "Invalid action" }, { status: 400 })
   } catch (error) {
-    console.error("Error en acción del juego:", error)
-    return NextResponse.json({ error: "Error al procesar la acción del juego" }, { status: 500 })
+    console.error("Error in game action:", error)
+    return NextResponse.json({ error: "Error processing game action" }, { status: 500 })
   }
 }

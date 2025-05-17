@@ -1,10 +1,10 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { useToast } from "@/hooks/use-toast"
-// No hay importación de MiniKit aquí, así que no necesitamos cambiar nada
+import { useSettings } from "@/context/settings-context"
 
-// Tipos para nuestros datos
+// Types for our data
 export interface Player {
   id: string
   username: string
@@ -19,21 +19,21 @@ export interface Winner {
 }
 
 interface GameContextType {
-  // Estado del juego
+  // Game state
   timeLeft: number
+  buttonPresses: number
   pot: number
   isExploding: boolean
-  isButtonDisabled: boolean
-  isVerified: boolean
-  currentUser: { id: string; username: string } | null
   lastPlayer: Player | null
   recentPlayers: Player[]
   winners: Winner[]
+  registeredPlayers: Player[]
+  currentPlayer: Player | null
 
-  // Acciones
-  verifyUser: () => Promise<boolean>
-  pressButton: () => Promise<boolean>
-  resetGame: () => void
+  // Actions
+  registerPlayer: (username: string) => boolean
+  selectPlayer: (id: string) => void
+  pressButton: () => void
   showWinners: () => void
   isWinnersModalOpen: boolean
   closeWinnersModal: () => void
@@ -41,51 +41,163 @@ interface GameContextType {
 
 const GameContext = createContext<GameContextType | undefined>(undefined)
 
+// Simulación de un servicio de tiempo real (en una implementación real, esto sería un WebSocket o similar)
+class RealtimeService {
+  private callbacks: ((data: any) => void)[] = []
+  private interval: NodeJS.Timeout | null = null
+
+  constructor() {
+    // Simular actualizaciones periódicas
+    this.interval = setInterval(() => {
+      this.fetchGameState()
+    }, 3000)
+  }
+
+  subscribe(callback: (data: any) => void) {
+    this.callbacks.push(callback)
+    return () => {
+      this.callbacks = this.callbacks.filter((cb) => cb !== callback)
+    }
+  }
+
+  private async fetchGameState() {
+    try {
+      const response = await fetch("/api/game-state")
+      const data = await response.json()
+      this.callbacks.forEach((callback) => callback(data))
+    } catch (error) {
+      console.error("Error fetching game state:", error)
+    }
+  }
+
+  async updateGameState(player: Player) {
+    try {
+      const response = await fetch("/api/game-state", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ player: player.username }),
+      })
+      const data = await response.json()
+      this.callbacks.forEach((callback) => callback(data))
+      return data
+    } catch (error) {
+      console.error("Error updating game state:", error)
+      throw error
+    }
+  }
+
+  cleanup() {
+    if (this.interval) {
+      clearInterval(this.interval)
+    }
+  }
+}
+
+// Crear una instancia del servicio
+const realtimeService = new RealtimeService()
+
 export function GameProvider({ children }: { children: ReactNode }) {
-  // Estado del juego
-  const [timeLeft, setTimeLeft] = useState(240) // 4 minutos en segundos
+  // Game state
+  const [timeLeft, setTimeLeft] = useState(240) // 4 minutes in seconds
+  const [buttonPresses, setButtonPresses] = useState(0)
   const [pot, setPot] = useState(0.1)
   const [isExploding, setIsExploding] = useState(false)
-  const [isButtonDisabled, setIsButtonDisabled] = useState(false)
-  const [isVerified, setIsVerified] = useState(false)
-  const [currentUser, setCurrentUser] = useState<{ id: string; username: string } | null>(null)
   const [lastPlayer, setLastPlayer] = useState<Player | null>(null)
   const [recentPlayers, setRecentPlayers] = useState<Player[]>([])
   const [winners, setWinners] = useState<Winner[]>([])
+  const [registeredPlayers, setRegisteredPlayers] = useState<Player[]>([])
+  const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null)
   const [isWinnersModalOpen, setIsWinnersModalOpen] = useState(false)
 
   const { toast } = useToast()
+  const { texts, soundEnabled } = useSettings()
 
-  // Cargar datos guardados al iniciar
+  // Suscribirse a actualizaciones en tiempo real
+  useEffect(() => {
+    const unsubscribe = realtimeService.subscribe((data) => {
+      // Actualizar el estado del juego con los datos recibidos
+      if (data.timeLeft !== undefined) setTimeLeft(data.timeLeft)
+      if (data.pot !== undefined) setPot(data.pot)
+      if (data.buttonPresses !== undefined) setButtonPresses(data.buttonPresses)
+
+      // Actualizar último jugador y lista de jugadores recientes
+      if (data.lastPlayer && data.lastPlayer !== "Nadie aún") {
+        const player = {
+          id: `player-${Date.now()}`,
+          username: data.lastPlayer,
+          timestamp: Date.now(),
+        }
+        setLastPlayer(player)
+
+        // Actualizar lista de jugadores recientes sin duplicados
+        setRecentPlayers((prev) => {
+          const exists = prev.some((p) => p.username === player.username)
+          if (exists) {
+            return [player, ...prev.filter((p) => p.username !== player.username)].slice(0, 5)
+          } else {
+            return [player, ...prev].slice(0, 5)
+          }
+        })
+      }
+    })
+
+    return () => {
+      unsubscribe()
+      realtimeService.cleanup()
+    }
+  }, [])
+
+  // Load saved data on mount
   useEffect(() => {
     try {
-      // Cargar ganadores anteriores
+      // Load saved winners
       const savedWinners = localStorage.getItem("goodbomb-winners")
       if (savedWinners) {
         setWinners(JSON.parse(savedWinners))
       }
 
-      // Cargar jugadores recientes
-      const savedPlayers = localStorage.getItem("goodbomb-players")
-      if (savedPlayers) {
-        const players = JSON.parse(savedPlayers)
-        setRecentPlayers(players)
-        if (players.length > 0) {
-          setLastPlayer(players[0])
-        }
+      // Load registered players
+      const savedRegisteredPlayers = localStorage.getItem("goodbomb-registered-players")
+      if (savedRegisteredPlayers) {
+        setRegisteredPlayers(JSON.parse(savedRegisteredPlayers))
       }
 
-      // Cargar estado del juego
-      const savedPot = localStorage.getItem("goodbomb-pot")
-      if (savedPot) {
-        setPot(Number.parseFloat(savedPot))
+      // Cargar jugador actual si existe
+      const savedCurrentPlayer = localStorage.getItem("goodbomb-current-player")
+      if (savedCurrentPlayer) {
+        setCurrentPlayer(JSON.parse(savedCurrentPlayer))
       }
+
+      // Cargar estado inicial del juego
+      fetch("/api/game-state")
+        .then((response) => response.json())
+        .then((data) => {
+          if (data.timeLeft !== undefined) setTimeLeft(data.timeLeft)
+          if (data.pot !== undefined) setPot(data.pot)
+          if (data.buttonPresses !== undefined) setButtonPresses(data.buttonPresses)
+
+          // Actualizar último jugador y lista de jugadores recientes
+          if (data.lastPlayer && data.lastPlayer !== "Nadie aún") {
+            const player = {
+              id: `player-${Date.now()}`,
+              username: data.lastPlayer,
+              timestamp: Date.now(),
+            }
+            setLastPlayer(player)
+            setRecentPlayers([player])
+          }
+        })
+        .catch((error) => {
+          console.error("Error loading initial game state:", error)
+        })
     } catch (error) {
-      console.error("Error cargando datos guardados:", error)
+      console.error("Error loading saved data:", error)
     }
   }, [])
 
-  // Temporizador del juego
+  // Game timer
   useEffect(() => {
     if (timeLeft <= 0) {
       handleExplosion()
@@ -99,27 +211,29 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(timer)
   }, [timeLeft])
 
-  // Guardar datos cuando cambian
+  // Save data when it changes
   useEffect(() => {
     try {
-      localStorage.setItem("goodbomb-players", JSON.stringify(recentPlayers))
       localStorage.setItem("goodbomb-winners", JSON.stringify(winners))
-      localStorage.setItem("goodbomb-pot", pot.toString())
+      localStorage.setItem("goodbomb-registered-players", JSON.stringify(registeredPlayers))
+      if (currentPlayer) {
+        localStorage.setItem("goodbomb-current-player", JSON.stringify(currentPlayer))
+      }
     } catch (error) {
-      console.error("Error guardando datos:", error)
+      console.error("Error saving data:", error)
     }
-  }, [recentPlayers, winners, pot])
+  }, [winners, registeredPlayers, currentPlayer])
 
-  // Manejar la explosión de la bomba
-  const handleExplosion = async () => {
+  // Handle bomb explosion
+  const handleExplosion = useCallback(() => {
     setIsExploding(true)
 
-    // Si hay un último jugador, es el ganador
+    // If there's a last player, they're the winner
     if (lastPlayer) {
-      // Calcular premio (85% del pozo)
+      // Calculate prize (85% of pot)
       const winAmount = pot * 0.85
 
-      // Registrar ganador
+      // Register winner
       const winner: Winner = {
         ...lastPlayer,
         amount: winAmount,
@@ -128,222 +242,175 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const updatedWinners = [winner, ...winners]
       setWinners(updatedWinners)
 
+      // Registrar ganador en la API
+      fetch("/api/winners", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: lastPlayer.username,
+          amount: winAmount,
+        }),
+      }).catch((error) => {
+        console.error("Error registering winner:", error)
+      })
+
       toast({
-        title: "¡BOOM!",
-        description: `¡${lastPlayer.username} ha ganado ${winAmount.toFixed(2)} WLD!`,
+        title: texts.explosionTitle,
+        description: `${texts.explosionPrefix} @${lastPlayer.username} ${texts.explosionWon} ${winAmount.toFixed(2)} WLD!`,
         variant: "destructive",
       })
     }
 
-    // Reiniciar juego después de la animación
+    // Restart game after animation
     setTimeout(() => {
       setIsExploding(false)
       setTimeLeft(240)
-      // 5% del pozo va a la siguiente ronda
+      // 5% of pot goes to next round
       setPot(pot * 0.05)
-      setLastPlayer(null)
+
+      // Reiniciar juego en la API
+      fetch("/api/game-state", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "reset",
+        }),
+      }).catch((error) => {
+        console.error("Error resetting game:", error)
+      })
     }, 3000)
-  }
+  }, [lastPlayer, pot, winners, toast, texts])
 
-  // Verificar usuario con World ID
-  const verifyUser = async (): Promise<boolean> => {
-    try {
-      // Intentar obtener el usuario de MiniKit
-      if (typeof window !== "undefined" && "MiniKit" in window) {
-        try {
-          // @ts-ignore - MiniKit está disponible globalmente
-          const miniKit = window.MiniKit
-
-          // Verificar con World ID
-          const verificationResult = await miniKit.verify({
-            action: "verify_user",
-            signal: "wld_jp_" + Date.now().toString(),
-          })
-
-          if (verificationResult.status !== "success") {
-            toast({
-              title: "Error de verificación",
-              description: "No se pudo verificar tu identidad. Inténtalo de nuevo.",
-              variant: "destructive",
-            })
-            return false
-          }
-
-          // Obtener información del usuario
-          const user = await miniKit.getUser()
-          if (user && user.username) {
-            setCurrentUser({
-              id: user.id || `user-${Date.now()}`,
-              username: user.username,
-            })
-            setIsVerified(true)
-            return true
-          }
-        } catch (error) {
-          console.error("Error obteniendo usuario de MiniKit:", error)
-          toast({
-            title: "Error de verificación",
-            description: "No se pudo verificar tu identidad. Inténtalo de nuevo.",
-            variant: "destructive",
-          })
-          return false
-        }
-      }
-
-      // Modo desarrollo - simular usuario si MiniKit no está disponible
-      const mockId = `dev-${Date.now()}`
-      const mockUsername = `Usuario${Math.floor(Math.random() * 1000)}`
-
-      setCurrentUser({
-        id: mockId,
-        username: mockUsername,
-      })
-
-      setIsVerified(true)
-      return true
-    } catch (error) {
-      console.error("Error en verificación:", error)
-      toast({
-        title: "Error de verificación",
-        description: "No se pudo verificar tu identidad. Inténtalo de nuevo.",
-        variant: "destructive",
-      })
-      return false
-    }
-  }
-
-  // Presionar el botón y realizar pago
-  const pressButton = async (): Promise<boolean> => {
-    if (!currentUser) {
+  // Register a new player
+  const registerPlayer = (username: string): boolean => {
+    // Check if username is already taken
+    if (registeredPlayers.some((player) => player.username.toLowerCase() === username.toLowerCase())) {
       toast({
         title: "Error",
-        description: "Debes verificarte primero",
+        description: "Este nombre de usuario ya está en uso",
         variant: "destructive",
       })
       return false
     }
 
-    // Verificar que no sea el mismo usuario dos veces seguidas
-    if (lastPlayer && lastPlayer.id === currentUser.id) {
+    // Create new player
+    const newPlayer: Player = {
+      id: `player-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      username,
+      timestamp: Date.now(),
+    }
+
+    // Add to registered players
+    setRegisteredPlayers((prev) => [...prev, newPlayer])
+
+    // Set as current player
+    setCurrentPlayer(newPlayer)
+
+    // Registrar jugador en la API
+    fetch("/api/game-state", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        action: "register",
+        username,
+      }),
+    }).catch((error) => {
+      console.error("Error registering player:", error)
+    })
+
+    toast({
+      title: "¡Registro exitoso!",
+      description: `Bienvenido, ${username}. ¡Ahora puedes jugar!`,
+    })
+
+    return true
+  }
+
+  // Select an existing player
+  const selectPlayer = (id: string) => {
+    const player = registeredPlayers.find((p) => p.id === id)
+    if (player) {
+      setCurrentPlayer(player)
+      toast({
+        title: "Jugador seleccionado",
+        description: `Bienvenido de nuevo, ${player.username}`,
+      })
+    }
+  }
+
+  // Press the button
+  const pressButton = () => {
+    if (!currentPlayer) {
+      toast({
+        title: "Error",
+        description: "Debes registrarte primero",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Check if it's the same player twice in a row
+    if (lastPlayer && lastPlayer.id === currentPlayer.id) {
       toast({
         title: "No permitido",
         description: "No puedes presionar el botón dos veces seguidas",
         variant: "destructive",
       })
-      return false
+      return
     }
 
     try {
-      setIsButtonDisabled(true)
-
-      // Intentar realizar el pago con MiniKit
-      let paymentSuccess = false
-
-      if (typeof window !== "undefined" && "MiniKit" in window) {
-        try {
-          // @ts-ignore - MiniKit está disponible globalmente
-          const miniKit = window.MiniKit
-
-          // Obtener ID único para el pago
-          const response = await fetch("/api/initiate-pay", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-          })
-
-          const { id } = await response.json()
-
-          const result = await miniKit.pay({
-            id,
-            amount: "0.1",
-            token: "WLD",
-            recipientAddress: process.env.NEXT_PUBLIC_RECIPIENT_ADDRESS || "",
-          })
-
-          if (result && result.status === "success") {
-            paymentSuccess = true
-          } else {
-            toast({
-              title: "Error en el pago",
-              description: "No se pudo completar el pago. Inténtalo de nuevo.",
-            })
-            return false
-          }
-        } catch (error) {
-          console.error("Error en pago con MiniKit:", error)
-          toast({
-            title: "Error en el pago",
-            description: "No se pudo completar el pago. Inténtalo de nuevo.",
-          })
-          return false
-        }
-      } else {
-        // Modo desarrollo - simular pago exitoso
-        await new Promise((resolve) => setTimeout(resolve, 1000))
-        paymentSuccess = true
+      // Create new player action
+      const newAction: Player = {
+        ...currentPlayer,
+        timestamp: Date.now(),
       }
 
-      if (paymentSuccess) {
-        // Registrar jugador
-        const newPlayer: Player = {
-          id: currentUser.id,
-          username: currentUser.username,
-          timestamp: Date.now(),
-        }
+      // Update last player and recent players list
+      setLastPlayer(newAction)
+      setRecentPlayers((prev) => [newAction, ...prev].slice(0, 5))
 
-        // Actualizar último jugador y lista de jugadores recientes
-        setLastPlayer(newPlayer)
-        setRecentPlayers((prev) => {
-          const updated = [newPlayer, ...prev].slice(0, 5)
-          return updated
-        })
+      // Update pot, button presses and reset timer
+      setPot((prev) => prev + 0.1)
+      setButtonPresses((prev) => prev + 1)
+      setTimeLeft(240)
 
-        // Actualizar pozo y reiniciar temporizador
-        setPot((prev) => prev + 0.1)
-        setTimeLeft(240)
-
+      // Actualizar estado del juego en tiempo real
+      realtimeService.updateGameState(newAction).catch((error) => {
+        console.error("Error updating game state:", error)
         toast({
-          title: "¡Bomba activada!",
-          description: "Has añadido 0.1 WLD al pozo. ¡El temporizador se ha reiniciado!",
+          title: "Error",
+          description: "Ocurrió un error al actualizar el estado del juego.",
+          variant: "destructive",
         })
+      })
 
-        return true
-      } else {
-        toast({
-          title: "Error en el pago",
-          description: "No se pudo completar el pago. Inténtalo de nuevo.",
-        })
-        return false
-      }
+      toast({
+        title: texts.bombActivated,
+        description: texts.bombActivatedDesc,
+      })
     } catch (error) {
-      console.error("Error al presionar el botón:", error)
+      console.error("Error pressing button:", error)
       toast({
         title: "Error",
         description: "Ocurrió un error al procesar tu solicitud.",
         variant: "destructive",
       })
-      return false
-    } finally {
-      setIsButtonDisabled(false)
     }
   }
 
-  // Reiniciar juego manualmente
-  const resetGame = () => {
-    setTimeLeft(240)
-    setPot(0.1)
-    setIsExploding(false)
-    setLastPlayer(null)
-    setRecentPlayers([])
-  }
-
-  // Mostrar modal de ganadores
+  // Show winners modal
   const showWinners = () => {
     setIsWinnersModalOpen(true)
   }
 
-  // Cerrar modal de ganadores
+  // Close winners modal
   const closeWinnersModal = () => {
     setIsWinnersModalOpen(false)
   }
@@ -352,17 +419,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
     <GameContext.Provider
       value={{
         timeLeft,
+        buttonPresses,
         pot,
         isExploding,
-        isButtonDisabled,
-        isVerified,
-        currentUser,
         lastPlayer,
         recentPlayers,
         winners,
-        verifyUser,
+        registeredPlayers,
+        currentPlayer,
+        registerPlayer,
+        selectPlayer,
         pressButton,
-        resetGame,
         showWinners,
         isWinnersModalOpen,
         closeWinnersModal,

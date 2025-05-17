@@ -1,5 +1,6 @@
 "use client"
 
+import payment from "@/app/api/confirm-payment/route.ts
 import { useState } from "react"
 import { AlertTriangle } from "lucide-react"
 import { useGame } from "@/context/game-context"
